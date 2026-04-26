@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Financial Investment Risk Analysis — LendingClub Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1117; --surface: #1a1d27; --border: #2e3245;
+      --text: #e2e8f0; --muted: #8892a4;
+      --low: #22c55e; --medium: #f59e0b; --high: #ef4444; --critical: #9333ea;
+      --accent: #3b82f6;
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 1rem 2rem; display: flex; align-items: center; justify-content: space-between; }
+    header h1 { font-size: 1.25rem; font-weight: 700; color: var(--accent); }
+    header .subtitle { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
+    .header-actions { display: flex; gap: 0.75rem; align-items: center; }
+    button { cursor: pointer; border: none; border-radius: 6px; padding: 0.5rem 1.1rem; font-size: 0.85rem; font-weight: 600; transition: opacity 0.2s; }
+    button:hover { opacity: 0.85; }
+    #btn-run { background: var(--accent); color: #fff; }
+    #btn-refresh { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+    #status-bar { background: #111827; padding: 0.4rem 2rem; font-size: 0.75rem; color: var(--muted); display: flex; gap: 1.5rem; align-items: center; }
+    .job-indicator { display: flex; align-items: center; gap: 0.35rem; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+    .dot.running { background: var(--medium); animation: pulse 1s infinite; }
+    .dot.completed { background: var(--low); }
+    .dot.failed { background: var(--high); }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.4} }
+    main { padding: 1.5rem 2rem; display: grid; gap: 1.5rem; }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.2rem; }
+    .card-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.4rem; }
+    .card-value { font-size: 1.8rem; font-weight: 700; }
+    .card-sub { font-size: 0.75rem; color: var(--muted); margin-top: 0.2rem; }
+    .card-value.critical { color: var(--critical); }
+    .card-value.high { color: var(--high); }
+    .card-value.medium { color: var(--medium); }
+    .card-value.low { color: var(--low); }
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+    .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.2rem; }
+    .chart-card h2 { font-size: 0.9rem; font-weight: 600; margin-bottom: 1rem; color: var(--text); }
+    .chart-wrap { position: relative; height: 260px; }
+    .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.2rem; overflow-x: auto; }
+    .table-card h2 { font-size: 0.9rem; font-weight: 600; margin-bottom: 1rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th { text-align: left; padding: 0.5rem 0.75rem; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border); text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.05em; }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid rgba(46,50,69,0.5); }
+    tr:last-child td { border-bottom: none; }
+    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 700; }
+    .badge.LOW { background: rgba(34,197,94,0.15); color: var(--low); }
+    .badge.MEDIUM { background: rgba(245,158,11,0.15); color: var(--medium); }
+    .badge.HIGH { background: rgba(239,68,68,0.15); color: var(--high); }
+    .badge.CRITICAL { background: rgba(147,51,234,0.15); color: var(--critical); }
+    .recommendation { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.25); border-radius: 10px; padding: 1rem 1.2rem; font-size: 0.85rem; line-height: 1.6; color: var(--text); }
+    .recommendation strong { color: var(--accent); }
+    #loading-overlay { position: fixed; inset: 0; background: rgba(15,17,23,0.8); display: flex; align-items: center; justify-content: center; z-index: 999; font-size: 1.1rem; gap: 0.75rem; }
+    .spinner { width: 22px; height: 22px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading-overlay.hidden { display: none; }
+    footer { text-align: center; padding: 1.5rem; font-size: 0.72rem; color: var(--muted); border-top: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <span>Loading risk analysis data…</span>
+</div>
+
+<header>
+  <div>
+    <h1>Financial Investment Risk Analysis</h1>
+    <div class="subtitle">LendingClub Loan Dataset — Apache Hadoop MapReduce</div>
+  </div>
+  <div class="header-actions">
+    <button id="btn-refresh" onclick="loadAllData()">Refresh</button>
+    <button id="btn-run" onclick="runAllJobs()">Run All Jobs</button>
+  </div>
+</header>
+
+<div id="status-bar">
+  <span>Job Status:</span>
+  <span class="job-indicator"><span class="dot" id="dot-job1"></span>Job 1: Grade</span>
+  <span class="job-indicator"><span class="dot" id="dot-job2"></span>Job 2: State</span>
+  <span class="job-indicator"><span class="dot" id="dot-job3"></span>Job 3: Employment</span>
+  <span class="job-indicator"><span class="dot" id="dot-job4"></span>Job 4: Interest</span>
+  <span id="last-updated" style="margin-left:auto"></span>
+</div>
+
+<main>
+
+  <!-- Summary Cards -->
+  <div class="summary-grid">
+    <div class="card">
+      <div class="card-label">Total Loans Analyzed</div>
+      <div class="card-value" id="total-loans">—</div>
+      <div class="card-sub">across all grades</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Overall Default Rate</div>
+      <div class="card-value" id="overall-rate">—</div>
+      <div class="card-sub">all loan grades combined</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Highest Risk Grade</div>
+      <div class="card-value critical" id="highest-grade">—</div>
+      <div class="card-sub">avoid for conservative portfolios</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Lowest Risk Grade</div>
+      <div class="card-value low" id="lowest-grade">—</div>
+      <div class="card-sub">best risk-adjusted returns</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Highest Risk State</div>
+      <div class="card-value high" id="highest-state">—</div>
+      <div class="card-sub">geographic concentration risk</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Highest Risk Employment</div>
+      <div class="card-value medium" id="highest-emp">—</div>
+      <div class="card-sub">employment stability factor</div>
+    </div>
+  </div>
+
+  <!-- Recommendation -->
+  <div class="recommendation" id="recommendation-box">
+    <strong>Analysis:</strong> <span id="recommendation-text">Loading recommendation…</span>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h2>Default Rate by Loan Grade</h2>
+      <div class="chart-wrap"><canvas id="chart-grade"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h2>Interest Rate vs Default Rate by Grade</h2>
+      <div class="chart-wrap"><canvas id="chart-interest"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h2>Default Rate by Employment Length</h2>
+      <div class="chart-wrap"><canvas id="chart-employment"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h2>Top 10 Highest-Risk US States</h2>
+      <div class="chart-wrap"><canvas id="chart-states"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Detailed Tables -->
+  <div class="charts-grid">
+    <div class="table-card">
+      <h2>Grade Risk Detail</h2>
+      <table>
+        <thead>
+          <tr><th>Grade</th><th>Total Loans</th><th>Defaults</th><th>Default Rate</th><th>Risk</th></tr>
+        </thead>
+        <tbody id="table-grade-body"></tbody>
+      </table>
+    </div>
+    <div class="table-card">
+      <h2>Top 15 States by Default Rate</h2>
+      <table>
+        <thead>
+          <tr><th>State</th><th>Total Loans</th><th>Defaults</th><th>Default Rate</th><th>Risk</th></tr>
+        </thead>
+        <tbody id="table-state-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  Hadoop Risk Analysis &mdash; CS Distributed Systems Project &mdash;
+  Data: LendingClub Accepted Loans 2007–2018 (~2.2M records)
+</footer>
+
+<script>
+  const API = ''; // same-origin; if testing standalone set to 'http://master-ip:8080'
+
+  const RISK_COLORS = {
+    LOW:      '#22c55e',
+    MEDIUM:   '#f59e0b',
+    HIGH:     '#ef4444',
+    CRITICAL: '#9333ea',
+  };
+
+  let charts = {};
+
+  function riskColor(level) {
+    return RISK_COLORS[level] || '#8892a4';
+  }
+
+  function badge(level) {
+    return `<span class="badge ${level}">${level}</span>`;
+  }
+
+  function fmtNum(n) {
+    return n ? n.toLocaleString() : '—';
+  }
+
+  function fmtPct(p) {
+    return p != null ? p.toFixed(2) + '%' : '—';
+  }
+
+  function setCard(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value ?? '—';
+  }
+
+  async function fetchJSON(path) {
+    const res = await fetch(API + path);
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${path}`);
+    return res.json();
+  }
+
+  function destroyChart(id) {
+    if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+  }
+
+  function buildGradeChart(data) {
+    destroyChart('grade');
+    const sorted = [...data].sort((a, b) => a.grade.localeCompare(b.grade));
+    const ctx = document.getElementById('chart-grade').getContext('2d');
+    charts['grade'] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: sorted.map(d => 'Grade ' + d.grade),
+        datasets: [{
+          label: 'Default Rate %',
+          data: sorted.map(d => d.default_rate_pct),
+          backgroundColor: sorted.map(d => riskColor(d.risk_level)),
+          borderRadius: 5,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#8892a4', callback: v => v + '%' }, grid: { color: '#2e3245' } },
+          y: { ticks: { color: '#e2e8f0' }, grid: { display: false } },
+        }
+      }
+    });
+
+    // Populate table
+    const tbody = document.getElementById('table-grade-body');
+    tbody.innerHTML = sorted.map(d => `
+      <tr>
+        <td><strong>${d.grade}</strong></td>
+        <td>${fmtNum(d.total_loans)}</td>
+        <td>${fmtNum(d.total_defaults)}</td>
+        <td>${fmtPct(d.default_rate_pct)}</td>
+        <td>${badge(d.risk_level)}</td>
+      </tr>`).join('');
+  }
+
+  function buildInterestChart(data) {
+    destroyChart('interest');
+    const sorted = [...data].sort((a, b) => a.grade.localeCompare(b.grade));
+    const ctx = document.getElementById('chart-interest').getContext('2d');
+    charts['interest'] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: sorted.map(d => 'Grade ' + d.grade),
+        datasets: [
+          {
+            label: 'Avg Interest Rate %',
+            data: sorted.map(d => d.avg_interest_rate),
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59,130,246,0.1)',
+            tension: 0.4,
+            yAxisID: 'y',
+          },
+          {
+            label: 'Default Rate %',
+            data: sorted.map(d => d.default_rate_pct),
+            borderColor: '#ef4444',
+            backgroundColor: 'rgba(239,68,68,0.1)',
+            tension: 0.4,
+            yAxisID: 'y',
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#e2e8f0', boxWidth: 12 } } },
+        scales: {
+          y: { ticks: { color: '#8892a4', callback: v => v + '%' }, grid: { color: '#2e3245' } },
+          x: { ticks: { color: '#e2e8f0' }, grid: { display: false } },
+        }
+      }
+    });
+  }
+
+  function buildEmploymentChart(data) {
+    destroyChart('employment');
+    const order = ['< 1 year', '1-2 years', '3-5 years', '6-9 years', '10+ years'];
+    const sorted = [...data].sort((a, b) => order.indexOf(a.employment_bucket) - order.indexOf(b.employment_bucket));
+    const ctx = document.getElementById('chart-employment').getContext('2d');
+    charts['employment'] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: sorted.map(d => d.employment_bucket),
+        datasets: [{
+          label: 'Default Rate %',
+          data: sorted.map(d => d.default_rate_pct),
+          backgroundColor: sorted.map(d => riskColor(d.risk_level)),
+          borderRadius: 5,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { ticks: { color: '#8892a4', callback: v => v + '%' }, grid: { color: '#2e3245' } },
+          x: { ticks: { color: '#e2e8f0' }, grid: { display: false } },
+        }
+      }
+    });
+  }
+
+  function buildStateChart(data) {
+    destroyChart('states');
+    const top10 = [...data].sort((a, b) => b.default_rate_pct - a.default_rate_pct).slice(0, 10);
+    const ctx = document.getElementById('chart-states').getContext('2d');
+    charts['states'] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: top10.map(d => d.state),
+        datasets: [{
+          label: 'Default Rate %',
+          data: top10.map(d => d.default_rate_pct),
+          backgroundColor: top10.map(d => riskColor(d.risk_level)),
+          borderRadius: 5,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#8892a4', callback: v => v + '%' }, grid: { color: '#2e3245' } },
+          y: { ticks: { color: '#e2e8f0' }, grid: { display: false } },
+        }
+      }
+    });
+
+    // Populate state table (top 15)
+    const top15 = [...data].sort((a, b) => b.default_rate_pct - a.default_rate_pct).slice(0, 15);
+    const tbody = document.getElementById('table-state-body');
+    tbody.innerHTML = top15.map(d => `
+      <tr>
+        <td><strong>${d.state}</strong></td>
+        <td>${fmtNum(d.total_loans)}</td>
+        <td>${fmtNum(d.total_defaults)}</td>
+        <td>${fmtPct(d.default_rate_pct)}</td>
+        <td>${badge(d.risk_level)}</td>
+      </tr>`).join('');
+  }
+
+  function updateJobDot(jobNum, status) {
+    const dot = document.getElementById('dot-job' + jobNum);
+    if (!dot) return;
+    dot.className = 'dot';
+    if (status === 'RUNNING') dot.classList.add('running');
+    else if (status === 'COMPLETED') dot.classList.add('completed');
+    else if (status === 'FAILED') dot.classList.add('failed');
+  }
+
+  async function loadAllData() {
+    document.getElementById('loading-overlay').classList.remove('hidden');
+    try {
+      const [grade, state, emp, interest, summary] = await Promise.allSettled([
+        fetchJSON('/api/results/grade'),
+        fetchJSON('/api/results/state'),
+        fetchJSON('/api/results/employment'),
+        fetchJSON('/api/results/interest'),
+        fetchJSON('/api/results/risk-summary'),
+      ]);
+
+      if (grade.status === 'fulfilled' && grade.value) {
+        buildGradeChart(grade.value);
+        updateJobDot(1, 'COMPLETED');
+      }
+      if (state.status === 'fulfilled' && state.value) {
+        buildStateChart(state.value);
+        updateJobDot(2, 'COMPLETED');
+      }
+      if (emp.status === 'fulfilled' && emp.value) {
+        buildEmploymentChart(emp.value);
+        updateJobDot(3, 'COMPLETED');
+      }
+      if (interest.status === 'fulfilled' && interest.value) {
+        buildInterestChart(interest.value);
+        updateJobDot(4, 'COMPLETED');
+      }
+      if (summary.status === 'fulfilled' && summary.value) {
+        const s = summary.value;
+        setCard('total-loans', fmtNum(s.total_loans_analyzed));
+        setCard('overall-rate', fmtPct(s.overall_default_rate_pct));
+        setCard('highest-grade', s.highest_risk_grade);
+        setCard('lowest-grade', s.lowest_risk_grade);
+        setCard('highest-state', s.highest_risk_state);
+        setCard('highest-emp', s.highest_risk_employment_bucket);
+        document.getElementById('recommendation-text').textContent = s.recommendation;
+      }
+    } catch (err) {
+      console.error('loadAllData error:', err);
+    } finally {
+      document.getElementById('loading-overlay').classList.add('hidden');
+      document.getElementById('last-updated').textContent =
+        'Last updated: ' + new Date().toLocaleTimeString();
+    }
+  }
+
+  async function runAllJobs() {
+    const btn = document.getElementById('btn-run');
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+    ['job1','job2','job3','job4'].forEach((_, i) => updateJobDot(i+1, 'RUNNING'));
+
+    try {
+      const res = await fetch(API + '/api/jobs/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_ids: ['all'] }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Unknown error');
+      btn.textContent = 'Jobs Submitted';
+      // Poll for completion every 10 seconds, up to 30 minutes
+      pollJobStatus(data.run_id, data.jobs);
+    } catch (err) {
+      alert('Failed to submit jobs: ' + err.message);
+      btn.disabled = false;
+      btn.textContent = 'Run All Jobs';
+    }
+  }
+
+  async function pollJobStatus(runId, jobs) {
+    const btn = document.getElementById('btn-run');
+    let attempts = 0;
+    const maxAttempts = 180; // 30 min at 10s intervals
+
+    const poll = async () => {
+      attempts++;
+      let allDone = true;
+      for (const job of jobs) {
+        try {
+          const res = await fetch(API + '/api/jobs/' + job.run_id + '/status');
+          const state = await res.json();
+          updateJobDot(job.job_id.replace('job',''), state.status);
+          if (state.status === 'RUNNING' || state.status === 'PENDING') allDone = false;
+        } catch (_) {}
+      }
+
+      if (allDone || attempts >= maxAttempts) {
+        btn.disabled = false;
+        btn.textContent = 'Run All Jobs';
+        if (allDone) loadAllData();
+      } else {
+        setTimeout(poll, 10000);
+      }
+    };
+
+    setTimeout(poll, 10000);
+  }
+
+  // Initial load
+  loadAllData();
+
+  // Auto-refresh every 30 seconds
+  setInterval(loadAllData, 30000);
+</script>
+</body>
+</html>

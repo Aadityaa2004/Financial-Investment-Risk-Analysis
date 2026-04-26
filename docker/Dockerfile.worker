@@ -1,0 +1,19 @@
+# Worker node image: Hadoop base + Python MapReduce scripts
+FROM hadoop-base:latest
+
+# No extra pip packages needed — all MapReduce scripts use stdlib only (csv, sys, etc.)
+# The install step is here for documentation / future extension.
+RUN pip3 install --no-cache-dir \
+    flake8==7.0.0
+
+# Copy MapReduce scripts
+COPY mapreduce/ /mapreduce/
+RUN chmod +x /mapreduce/job*/run.sh \
+    && find /mapreduce -name "*.py" -exec chmod +x {} \;
+
+COPY docker/entrypoint-worker.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 9864 8042 22
+
+ENTRYPOINT ["/entrypoint.sh"]

@@ -1,0 +1,42 @@
+version: "3.8"
+
+# Worker node: DataNode + NodeManager.
+# Must use host network mode to communicate with the master node across EC2 instances.
+# Deploy this docker-compose.worker.yml on BOTH worker EC2 instances.
+# Set WORKER_ID=worker1 on the first instance and WORKER_ID=worker2 on the second.
+
+services:
+  worker:
+    image: hadoop-worker:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+      cache_from:
+        - hadoop-base:latest
+    container_name: hadoop-worker
+    hostname: ${WORKER_ID:-worker1}
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      - WORKER_ID=${WORKER_ID:-worker1}
+      - MASTER_HOST=${MASTER_HOST:-master}
+      - JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+      - HADOOP_HOME=/opt/hadoop
+    volumes:
+      - datanode-data:/hadoop/hdfs/datanode
+      - hadoop-tmp:/hadoop/tmp
+      - hadoop-logs:/opt/hadoop/logs
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9864/"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+volumes:
+  datanode-data:
+    driver: local
+  hadoop-tmp:
+    driver: local
+  hadoop-logs:
+    driver: local

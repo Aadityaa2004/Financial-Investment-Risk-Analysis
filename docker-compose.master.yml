@@ -1,0 +1,48 @@
+version: "3.8"
+
+# Master node: NameNode + ResourceManager + all Go microservices.
+# Must run in host network mode so Hadoop inter-node RPC works across EC2 instances.
+
+services:
+  master:
+    image: hadoop-master:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.master
+      cache_from:
+        - hadoop-base:latest
+    container_name: hadoop-master
+    hostname: master
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      - HADOOP_NAMENODE_HOST=master
+      - HDFS_INPUT=/user/hadoop/lendingclub/input
+      - HDFS_OUTPUT_BASE=/user/hadoop/lendingclub/output
+      - MAPREDUCE_DIR=/mapreduce
+      - API_GATEWAY_PORT=${API_GATEWAY_PORT:-8080}
+      - ORCHESTRATOR_PORT=${ORCHESTRATOR_PORT:-8081}
+      - AGGREGATOR_PORT=${AGGREGATOR_PORT:-8082}
+      - DASHBOARD_PORT=${DASHBOARD_PORT:-3000}
+      - ORCHESTRATOR_HOST=localhost
+      - AGGREGATOR_HOST=localhost
+      - JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+      - HADOOP_HOME=/opt/hadoop
+    volumes:
+      - namenode-data:/hadoop/hdfs/namenode
+      - hadoop-tmp:/hadoop/tmp
+      - hadoop-logs:/opt/hadoop/logs
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9870/webhdfs/v1/?op=LISTSTATUS"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+
+volumes:
+  namenode-data:
+    driver: local
+  hadoop-tmp:
+    driver: local
+  hadoop-logs:
+    driver: local

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <property>
+    <name>mapreduce.framework.name</name>
+    <value>yarn</value>
+    <description>Use YARN as the job execution framework</description>
+  </property>
+  <property>
+    <name>mapreduce.application.classpath</name>
+    <value>$HADOOP_HOME/share/hadoop/mapreduce/*:$HADOOP_HOME/share/hadoop/mapreduce/lib/*</value>
+  </property>
+  <property>
+    <name>mapreduce.map.memory.mb</name>
+    <value>1024</value>
+    <description>Memory per map task container (1GB)</description>
+  </property>
+  <property>
+    <name>mapreduce.reduce.memory.mb</name>
+    <value>1024</value>
+    <description>Memory per reduce task container (1GB)</description>
+  </property>
+  <property>
+    <name>mapreduce.map.java.opts</name>
+    <value>-Xmx819m</value>
+  </property>
+  <property>
+    <name>mapreduce.reduce.java.opts</name>
+    <value>-Xmx819m</value>
+  </property>
+  <property>
+    <name>mapreduce.jobhistory.address</name>
+    <value>master:10020</value>
+  </property>
+  <property>
+    <name>mapreduce.jobhistory.webapp.address</name>
+    <value>master:19888</value>
+  </property>
+  <property>
+    <name>mapreduce.task.io.sort.mb</name>
+    <value>256</value>
+    <description>Buffer for sorting map output before spill to disk</description>
+  </property>
+  <property>
+    <name>mapreduce.input.fileinputformat.split.maxsize</name>
+    <value>134217728</value>
+    <description>Max input split size matches block size (128MB)</description>
+  </property>
+</configuration>

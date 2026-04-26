@@ -1,0 +1,41 @@
+# Master node image: Hadoop base + Go 1.22 + all Go microservices
+FROM hadoop-base:latest
+
+ENV GO_VERSION=1.22.4
+ENV GOROOT=/usr/local/go
+ENV GOPATH=/go
+ENV PATH=${GOROOT}/bin:${GOPATH}/bin:${PATH}
+
+# Install Go 1.22
+RUN wget -q "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -O /tmp/go.tar.gz \
+    && tar -xzf /tmp/go.tar.gz -C /usr/local/ \
+    && rm /tmp/go.tar.gz
+
+# Create non-root service user for Go services
+RUN useradd -r -s /bin/bash -d /home/hadoop-svc -m hadoop-svc
+
+WORKDIR /app
+
+# Copy Go module files first for layer caching
+COPY services/go.mod services/go.sum ./
+RUN go mod download
+
+# Copy all service source code
+COPY services/ ./
+
+# Build all Go services
+RUN go build -ldflags="-s -w" -o /usr/local/bin/api-gateway      ./api-gateway/ \
+    && go build -ldflags="-s -w" -o /usr/local/bin/job-orchestrator ./job-orchestrator/ \
+    && go build -ldflags="-s -w" -o /usr/local/bin/result-aggregator ./result-aggregator/ \
+    && go build -ldflags="-s -w" -o /usr/local/bin/dashboard         ./dashboard/
+
+# Copy MapReduce scripts to the image (orchestrator needs to -file them)
+COPY mapreduce/ /mapreduce/
+RUN chmod +x /mapreduce/job*/run.sh
+
+COPY docker/entrypoint-master.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 8080 3000 8081 8082 9870 9000 8088 10020 19888 22
+
+ENTRYPOINT ["/entrypoint.sh"]

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <property>
+    <name>dfs.replication</name>
+    <value>2</value>
+    <description>Block replication factor — matches 2 worker nodes</description>
+  </property>
+  <property>
+    <name>dfs.namenode.name.dir</name>
+    <value>file:///hadoop/hdfs/namenode</value>
+    <description>Directory on master where NameNode stores metadata</description>
+  </property>
+  <property>
+    <name>dfs.datanode.data.dir</name>
+    <value>file:///hadoop/hdfs/datanode</value>
+    <description>Directory on workers where DataNode stores blocks</description>
+  </property>
+  <property>
+    <name>dfs.blocksize</name>
+    <value>134217728</value>
+    <description>HDFS block size: 128MB, appropriate for ~500MB CSV</description>
+  </property>
+  <property>
+    <name>dfs.namenode.http-address</name>
+    <value>master:9870</value>
+    <description>NameNode Web UI — accessible at http://master:9870</description>
+  </property>
+  <property>
+    <name>dfs.datanode.http.address</name>
+    <value>0.0.0.0:9864</value>
+    <description>DataNode Web UI — each worker listens on 0.0.0.0</description>
+  </property>
+  <property>
+    <name>dfs.namenode.datanode.registration.ip-hostname-check</name>
+    <value>false</value>
+    <description>Allow DataNodes to register by IP when DNS resolution is incomplete</description>
+  </property>
+  <property>
+    <name>dfs.permissions.enabled</name>
+    <value>false</value>
+    <description>Disable POSIX permission checks for class demo simplicity</description>
+  </property>
+  <property>
+    <name>dfs.namenode.rpc-address</name>
+    <value>master:9000</value>
+  </property>
+  <property>
+    <name>dfs.webhdfs.enabled</name>
+    <value>true</value>
+    <description>Enable WebHDFS REST API — used by Go result aggregator</description>
+  </property>
+</configuration>

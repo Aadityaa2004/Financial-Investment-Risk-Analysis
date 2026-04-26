@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+  <property>
+    <name>fs.defaultFS</name>
+    <value>hdfs://master:9000</value>
+    <description>The default filesystem URI for HDFS</description>
+  </property>
+  <property>
+    <name>hadoop.tmp.dir</name>
+    <value>/hadoop/tmp</value>
+    <description>Temporary directory used by Hadoop processes</description>
+  </property>
+  <property>
+    <name>hadoop.proxyuser.hadoop.hosts</name>
+    <value>*</value>
+  </property>
+  <property>
+    <name>hadoop.proxyuser.hadoop.groups</name>
+    <value>*</value>
+  </property>
+  <property>
+    <name>io.file.buffer.size</name>
+    <value>131072</value>
+    <description>Buffer size for Hadoop I/O operations (128KB)</description>
+  </property>
+</configuration>
