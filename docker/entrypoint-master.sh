@@ -8,6 +8,19 @@ log()  { echo -e "${GREEN}[master]${NC} $*"; }
 warn() { echo -e "${YELLOW}[master]${NC} $*"; }
 err()  { echo -e "${RED}[master]${NC} $*" >&2; }
 
+# Add local fallback host mappings when explicit DNS/hosts entries are absent.
+ensure_host_entry() {
+    local host="$1"
+    if ! getent hosts "${host}" >/dev/null 2>&1; then
+        printf '\n127.0.0.1 %s\n' "${host}" >> /etc/hosts
+        warn "Added fallback /etc/hosts entry: ${host} -> 127.0.0.1"
+    fi
+}
+
+ensure_host_entry "master"
+ensure_host_entry "worker1"
+ensure_host_entry "worker2"
+
 # ── SSH ──────────────────────────────────────────────────────────────────────
 log "Starting SSH daemon..."
 service ssh start || /usr/sbin/sshd
@@ -23,14 +36,15 @@ else
 fi
 
 # ── Start Hadoop daemons ──────────────────────────────────────────────────────
-log "Starting HDFS daemons..."
-start-dfs.sh
+log "Starting NameNode and SecondaryNameNode daemons..."
+hdfs --daemon start namenode || true
+hdfs --daemon start secondarynamenode || true
 
-log "Starting YARN daemons..."
-start-yarn.sh
+log "Starting YARN ResourceManager daemon..."
+yarn --daemon start resourcemanager || true
 
 log "Starting MapReduce JobHistory server..."
-mapred --daemon start historyserver
+mapred --daemon start historyserver || true
 
 # ── Wait for NameNode to leave safe mode ─────────────────────────────────────
 log "Waiting for NameNode to exit safe mode..."

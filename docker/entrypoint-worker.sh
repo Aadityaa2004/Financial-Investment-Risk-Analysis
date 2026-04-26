@@ -7,13 +7,26 @@ log()  { echo -e "${GREEN}[worker]${NC} $*"; }
 warn() { echo -e "${YELLOW}[worker]${NC} $*"; }
 
 WORKER_ID="${WORKER_ID:-worker}"
+MASTER="${MASTER_HOST:-master}"
+
+# Add local fallback host mappings when explicit DNS/hosts entries are absent.
+ensure_host_entry() {
+    local host="$1"
+    if ! getent hosts "${host}" >/dev/null 2>&1; then
+        printf '\n127.0.0.1 %s\n' "${host}" >> /etc/hosts
+        warn "[$WORKER_ID] Added fallback /etc/hosts entry: ${host} -> 127.0.0.1"
+    fi
+}
+
+ensure_host_entry "master"
+ensure_host_entry "worker1"
+ensure_host_entry "worker2"
 
 # ── SSH ──────────────────────────────────────────────────────────────────────
 log "[$WORKER_ID] Starting SSH daemon..."
 service ssh start || /usr/sbin/sshd
 
 # ── Wait for master NameNode to be reachable ──────────────────────────────────
-MASTER="${MASTER_HOST:-master}"
 log "[$WORKER_ID] Waiting for NameNode at ${MASTER}:9000..."
 for i in $(seq 1 60); do
     if nc -z "${MASTER}" 9000 2>/dev/null; then

@@ -15,13 +15,19 @@ Sample output:
   C\tinterest:16.02
 """
 
-import sys
 import csv
+import io
+import sys
 
-COL_LOAN_AMNT = 0
-COL_GRADE = 6
-COL_INT_RATE = 4
-COL_LOAN_STATUS = 14
+OLD_COL_LOAN_AMNT = 0
+OLD_COL_GRADE = 6
+OLD_COL_INT_RATE = 4
+OLD_COL_LOAN_STATUS = 14
+
+NEW_COL_LOAN_AMNT = 2
+NEW_COL_GRADE = 8
+NEW_COL_INT_RATE = 6
+NEW_COL_LOAN_STATUS = 16
 
 VALID_GRADES = frozenset({'A', 'B', 'C', 'D', 'E', 'F', 'G'})
 DEFAULT_STATUSES = frozenset({
@@ -41,37 +47,84 @@ def parse_rate(rate_str: str) -> float:
 
 
 def main() -> None:
-    reader = csv.reader(sys.stdin)
-    for line_num, row in enumerate(reader):
+    text_stream = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8-sig', errors='replace')
+    reader = csv.reader(text_stream)
+    counters = {
+        'header': 0,
+        'short_rows': 0,
+        'invalid_grade': 0,
+        'missing_rate': 0,
+        'bad_rate': 0,
+        'unknown_status': 0,
+        'emitted': 0,
+        'errors': 0,
+    }
+
+    for line_num, row in enumerate(reader, start=1):
         try:
-            if row[COL_LOAN_AMNT].strip() in ('loan_amnt', 'id', ''):
+            if len(row) <= NEW_COL_LOAN_STATUS:
+                counters['short_rows'] += 1
                 continue
 
-            loan_status = row[COL_LOAN_STATUS].strip()
+            old_status = row[OLD_COL_LOAN_STATUS].strip()
+            if old_status in DEFAULT_STATUSES or old_status in PAID_STATUSES:
+                col_loan_amnt, col_grade, col_int_rate, col_loan_status = (
+                    OLD_COL_LOAN_AMNT,
+                    OLD_COL_GRADE,
+                    OLD_COL_INT_RATE,
+                    OLD_COL_LOAN_STATUS,
+                )
+            else:
+                col_loan_amnt, col_grade, col_int_rate, col_loan_status = (
+                    NEW_COL_LOAN_AMNT,
+                    NEW_COL_GRADE,
+                    NEW_COL_INT_RATE,
+                    NEW_COL_LOAN_STATUS,
+                )
+
+            if row[col_loan_amnt].strip() in ('loan_amnt', 'id', ''):
+                counters['header'] += 1
+                continue
+
+            loan_status = row[col_loan_status].strip()
             if loan_status not in DEFAULT_STATUSES and loan_status not in PAID_STATUSES:
+                counters['unknown_status'] += 1
                 continue
 
-            grade = row[COL_GRADE].strip().upper()
+            grade = row[col_grade].strip().upper()
             if grade not in VALID_GRADES:
-                sys.stderr.write(f"SKIP line {line_num}: invalid grade '{grade}'\n")
+                counters['invalid_grade'] += 1
                 continue
 
-            int_rate_str = row[COL_INT_RATE].strip()
+            int_rate_str = row[col_int_rate].strip()
             if not int_rate_str:
-                sys.stderr.write(f"SKIP line {line_num}: missing interest rate\n")
+                counters['missing_rate'] += 1
                 continue
 
-            int_rate = parse_rate(int_rate_str)
+            try:
+                int_rate = parse_rate(int_rate_str)
+            except ValueError:
+                counters['bad_rate'] += 1
+                continue
 
             print(f"{grade}\tinterest:{int_rate:.4f}")
+            counters['emitted'] += 1
 
             if loan_status in DEFAULT_STATUSES:
                 print(f"{grade}\tdefault:1")
 
-        except (ValueError, IndexError) as exc:
-            sys.stderr.write(f"SKIP line {line_num}: {exc}\n")
         except Exception as exc:
-            sys.stderr.write(f"SKIP line {line_num}: unexpected — {exc}\n")
+            counters['errors'] += 1
+            sys.stderr.write(f"SKIP line {line_num}: unexpected - {exc}\n")
+
+    sys.stderr.write(f"reporter:counter:Job4Mapper,HeaderRows,{counters['header']}\n")
+    sys.stderr.write(f"reporter:counter:Job4Mapper,ShortRows,{counters['short_rows']}\n")
+    sys.stderr.write(f"reporter:counter:Job4Mapper,InvalidGrade,{counters['invalid_grade']}\n")
+    sys.stderr.write(f"reporter:counter:Job4Mapper,MissingRate,{counters['missing_rate']}\n")
+    sys.stderr.write(f"reporter:counter:Job4Mapper,BadRate,{counters['bad_rate']}\n")
+    sys.stderr.write(f"reporter:counter:Job4Mapper,UnknownStatus,{counters['unknown_status']}\n")
+    sys.stderr.write(f"reporter:counter:Job4Mapper,EmittedRows,{counters['emitted']}\n")
+    sys.stderr.write(f"reporter:counter:Job4Mapper,Errors,{counters['errors']}\n")
 
 
 if __name__ == '__main__':

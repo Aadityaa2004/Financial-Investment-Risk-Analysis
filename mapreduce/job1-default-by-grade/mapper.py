@@ -16,14 +16,19 @@ Sample output:
   C\t1:default
 """
 
-import sys
 import csv
+import io
+import sys
 
-# LendingClub accepted_2007_to_2018Q4.csv column indices (0-based)
-# These indices match the public Kaggle dataset header row.
-COL_LOAN_AMNT = 0
-COL_GRADE = 6
-COL_LOAN_STATUS = 14
+# sample_loans.csv layout
+OLD_COL_LOAN_AMNT = 0
+OLD_COL_GRADE = 6
+OLD_COL_LOAN_STATUS = 14
+
+# accepted_2007_to_2018Q4 full layout
+NEW_COL_LOAN_AMNT = 2
+NEW_COL_GRADE = 8
+NEW_COL_LOAN_STATUS = 16
 
 VALID_GRADES = {'A', 'B', 'C', 'D', 'E', 'F', 'G'}
 DEFAULT_STATUSES = {'Charged Off', 'Default', 'Does not meet the credit policy. Status:Charged Off'}
@@ -40,31 +45,73 @@ def classify_status(status: str) -> str | None:
     return None
 
 
+def resolve_indices(row: list[str]) -> tuple[int, int, int]:
+    if len(row) <= NEW_COL_LOAN_STATUS:
+        return OLD_COL_LOAN_AMNT, OLD_COL_GRADE, OLD_COL_LOAN_STATUS
+
+    old_status = classify_status(row[OLD_COL_LOAN_STATUS].strip()) is not None
+    new_status = classify_status(row[NEW_COL_LOAN_STATUS].strip()) is not None
+    old_grade = row[OLD_COL_GRADE].strip().upper() in VALID_GRADES
+    new_grade = row[NEW_COL_GRADE].strip().upper() in VALID_GRADES
+
+    if old_status and old_grade:
+        return OLD_COL_LOAN_AMNT, OLD_COL_GRADE, OLD_COL_LOAN_STATUS
+    if new_status and new_grade:
+        return NEW_COL_LOAN_AMNT, NEW_COL_GRADE, NEW_COL_LOAN_STATUS
+
+    # Fallback to full Kaggle layout.
+    return NEW_COL_LOAN_AMNT, NEW_COL_GRADE, NEW_COL_LOAN_STATUS
+
+
 def main() -> None:
-    reader = csv.reader(sys.stdin)
-    for line_num, row in enumerate(reader):
+    text_stream = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8-sig', errors='replace')
+    reader = csv.reader(text_stream)
+    counters = {
+        'header': 0,
+        'short_rows': 0,
+        'invalid_grade': 0,
+        'unknown_status': 0,
+        'emitted': 0,
+        'errors': 0,
+    }
+
+    for line_num, row in enumerate(reader, start=1):
         try:
+            col_loan_amnt, col_grade, col_loan_status = resolve_indices(row)
+            if len(row) <= col_loan_status:
+                counters['short_rows'] += 1
+                continue
+
             # Skip header row identified by the literal column name
-            if row[COL_LOAN_AMNT].strip() == 'loan_amnt' or row[COL_LOAN_AMNT].strip() == 'id':
+            if row[col_loan_amnt].strip() == 'loan_amnt' or row[col_loan_amnt].strip() == 'id':
+                counters['header'] += 1
                 continue
 
-            grade = row[COL_GRADE].strip().upper()
+            grade = row[col_grade].strip().upper()
             if grade not in VALID_GRADES:
-                sys.stderr.write(f"SKIP line {line_num}: invalid grade '{grade}'\n")
+                counters['invalid_grade'] += 1
                 continue
 
-            loan_status = row[COL_LOAN_STATUS].strip()
+            loan_status = row[col_loan_status].strip()
             classification = classify_status(loan_status)
             if classification is None:
                 # Skip in-progress loans (Current, Late, In Grace Period, etc.)
+                counters['unknown_status'] += 1
                 continue
 
             print(f"{grade}\t1:{classification}")
+            counters['emitted'] += 1
 
-        except IndexError:
-            sys.stderr.write(f"SKIP line {line_num}: too few columns ({len(row)} cols)\n")
         except Exception as exc:
-            sys.stderr.write(f"SKIP line {line_num}: unexpected error — {exc}\n")
+            counters['errors'] += 1
+            sys.stderr.write(f"SKIP line {line_num}: unexpected error - {exc}\n")
+
+    sys.stderr.write(f"reporter:counter:Job1Mapper,HeaderRows,{counters['header']}\n")
+    sys.stderr.write(f"reporter:counter:Job1Mapper,ShortRows,{counters['short_rows']}\n")
+    sys.stderr.write(f"reporter:counter:Job1Mapper,InvalidGrade,{counters['invalid_grade']}\n")
+    sys.stderr.write(f"reporter:counter:Job1Mapper,UnknownStatus,{counters['unknown_status']}\n")
+    sys.stderr.write(f"reporter:counter:Job1Mapper,EmittedRows,{counters['emitted']}\n")
+    sys.stderr.write(f"reporter:counter:Job1Mapper,Errors,{counters['errors']}\n")
 
 
 if __name__ == '__main__':

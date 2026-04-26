@@ -1,1 +1,4 @@
 .env
+results/
+diagnose-output.txt
+.claude/

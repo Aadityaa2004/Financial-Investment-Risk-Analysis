@@ -13,6 +13,7 @@ err()  { echo -e "${RED}[upload-dataset]${NC} $*" >&2; exit 1; }
 HDFS_INPUT="${HDFS_INPUT:-/user/hadoop/lendingclub/input}"
 LOCAL_DIR="${LOCAL_DIR:-/tmp/lendingclub}"
 CSV_FILE="${LOCAL_DIR}/accepted_2007_to_2018Q4.csv"
+NORMALIZED_CSV_FILE="${LOCAL_DIR}/accepted_2007_to_2018Q4.normalized.csv"
 GZ_FILE="${LOCAL_DIR}/accepted_2007_to_2018Q4.csv.gz"
 KAGGLE_DATASET="wordsforthewise/lending-club"
 
@@ -64,12 +65,31 @@ fi
 CSV_SIZE=$(du -sh "${CSV_FILE}" | cut -f1)
 log "Local CSV size: ${CSV_SIZE}"
 
+log "Normalizing CSV rows to remove embedded newlines in fields..."
+python3 - "${CSV_FILE}" "${NORMALIZED_CSV_FILE}" <<'PY'
+import csv
+import io
+import sys
+
+src = sys.argv[1]
+dst = sys.argv[2]
+
+with open(src, "rb") as infile, open(dst, "w", newline="", encoding="utf-8") as outfile:
+    reader = csv.reader(io.TextIOWrapper(infile, encoding="utf-8-sig", errors="replace"))
+    writer = csv.writer(outfile)
+    for row in reader:
+        cleaned = [col.replace("\r", " ").replace("\n", " ") for col in row]
+        writer.writerow(cleaned)
+PY
+NORMALIZED_SIZE=$(du -sh "${NORMALIZED_CSV_FILE}" | cut -f1)
+log "Normalized CSV size: ${NORMALIZED_SIZE}"
+
 # ── Upload to HDFS ────────────────────────────────────────────────────────────
 log "Creating HDFS input directory..."
 hdfs dfs -mkdir -p "${HDFS_INPUT}"
 
 log "Uploading to HDFS (this may take several minutes for a ~500MB file)..."
-hdfs dfs -put -f "${CSV_FILE}" "${HDFS_INPUT}/"
+hdfs dfs -put -f "${NORMALIZED_CSV_FILE}" "${HDFS_INPUT}/accepted_2007_to_2018Q4.csv"
 
 # ── Verify ────────────────────────────────────────────────────────────────────
 log "Verifying HDFS upload..."
