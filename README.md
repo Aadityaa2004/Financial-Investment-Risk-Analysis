@@ -1,5 +1,6 @@
 # Financial Investment Risk Analysis
-## Apache Hadoop MapReduce on AWS EC2 — Distributed Systems Project
+
+## Apache Hadoop MapReduce on AWS EC2 — Distributed Systems Project By: Aadityaa Rengaraj Sethuraman, John Nurray, Adithya Kumar
 
 A production-grade distributed batch processing system that analyzes **2.2 million LendingClub
 loan records** to quantify default risk for investors. Built on Apache Hadoop 3.3.6 deployed
